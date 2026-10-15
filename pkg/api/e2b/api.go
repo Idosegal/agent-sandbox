@@ -23,6 +23,7 @@ import (
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/activator"
 	"github.com/agent-sandbox/agent-sandbox/pkg/api/e2b/api"
+	"github.com/agent-sandbox/agent-sandbox/pkg/router"
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 
 	"context"
@@ -36,10 +37,11 @@ type Handler struct {
 	rootCtx    context.Context
 	controller *sandbox.Controller
 	activator  *activator.Activator
+	router     *router.SandboxRouter
 	domain     string
 }
 
-func NewHandler(rootCtx context.Context, c *sandbox.Controller, a *activator.Activator) *Handler {
+func NewHandler(rootCtx context.Context, c *sandbox.Controller, a *activator.Activator, sr *router.SandboxRouter) *Handler {
 	domain := "localhost"
 	if domainEnv := os.Getenv("E2B_DOMAIN"); domainEnv != "" {
 		domain = domainEnv
@@ -49,6 +51,7 @@ func NewHandler(rootCtx context.Context, c *sandbox.Controller, a *activator.Act
 		rootCtx:    rootCtx,
 		controller: c,
 		activator:  a,
+		router:     sr,
 		domain:     domain,
 	}
 }

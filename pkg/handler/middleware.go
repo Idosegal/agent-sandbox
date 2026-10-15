@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-sandbox/agent-sandbox/pkg/api/e2b"
+	e2bapi "github.com/agent-sandbox/agent-sandbox/pkg/api/e2b"
 	"github.com/agent-sandbox/agent-sandbox/pkg/auth"
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"k8s.io/klog/v2"
@@ -72,15 +72,13 @@ func ApiKeyAuthMiddleware(next http.Handler) http.Handler {
 }
 
 func shouldProtectAPIRequest(r *http.Request) bool {
-	if config.Cfg == nil {
-		return false
-	}
-	// /api/v1/status is public — it serves the Dashboard's aggregate counters
-	// (sandbox total, user total, capacity), with user keys masked.
-	if r.URL.Path == config.Cfg.APIBaseURL+"/status" {
-		return false
-	}
-	return strings.HasPrefix(r.URL.Path, config.Cfg.APIBaseURL+"/") || strings.HasPrefix(r.URL.Path, e2b.BaseURL+"/")
+	path := r.URL.Path
+
+	// /sandbox/{name} is not protected by API key, authorization is handled by the sandbox itself
+
+	return strings.HasPrefix(path, "/mcp") ||
+		strings.HasPrefix(path, config.Cfg.APIBaseURL+"/") ||
+		strings.HasPrefix(path, e2bapi.BaseURL+"/")
 }
 
 func writeUnauthorized(w http.ResponseWriter) {

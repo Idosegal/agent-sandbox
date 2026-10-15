@@ -64,14 +64,19 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		port = "0"
 	}
 
-	prefixToStrip := fmt.Sprintf("/sandbox/%s", name)
-
-	klog.Info("proxy router ", name, " port=", port, " prefixToStrip=", prefixToStrip)
-
 	//remove port query param from request url
 	q := r.URL.Query()
 	q.Del("port")
 	r.URL.RawQuery = q.Encode()
+
+	s.Proxy(w, r, name, port, fmt.Sprintf("/sandbox/%s", name))
+}
+
+// Proxy forwards r to the given port of sandbox `name`, stripping prefixToStrip from the path.
+// Callers that already resolved the sandbox (e.g. the E2B data-plane routes) call it directly
+// instead of rewriting the URL and re-dispatching through the mux.
+func (s *SandboxRouter) Proxy(w http.ResponseWriter, r *http.Request, name, port, prefixToStrip string) {
+	klog.Info("proxy router ", name, " port=", port, " prefixToStrip=", prefixToStrip)
 
 	targetURL, err := AcquireDest(s.rootCtx, name, port)
 	if err != nil {
@@ -91,6 +96,7 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		req.URL.Scheme = targetURL.Scheme
 		req.URL.Host = targetURL.Host
 		req.Host = targetURL.Host
+		// Removes the routing prefix: /sandbox/sb-01/foo → /foo, /sandboxes/router/{id}/{port}/foo → /foo.
 		req.URL.Path = strings.TrimPrefix(req.URL.Path, prefixToStrip)
 		klog.Info("Proxying request to sandbox ", "name=", name, " url=", req.Method, req.URL)
 		req.Header.Set("X-Request-ID", fmt.Sprintf("%d", time.Now().UnixNano()))
@@ -104,5 +110,4 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rw := NewResponseWare(w, http.StatusOK)
 	proxy.ServeHTTP(rw, r)
 	klog.Info("route completed request to sandbox ", name)
-	return
 }

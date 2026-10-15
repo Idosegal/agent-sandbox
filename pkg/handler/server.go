@@ -108,13 +108,13 @@ func (ahh *ApiHttpHandler) regHandlers() {
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/pool/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListPoolSandbox) })
 	ahh.mux.HandleFunc(fmt.Sprintf("DELETE %s/pool/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.DeletePoolSandboxes) })
 
-	// e2b API
-	e2bHeader := e2bapi.NewHandler(ahh.rootCtx, c, a)
-	e2bHeader.RegisterHandlersWithOptions(ahh.mux)
-
 	// SandboxHandler router, route calls to Sandbox container(proxy)
 	srHandler := router.NewSandboxRouter(ahh.rootCtx, a)
 	ahh.mux.HandleFunc("/sandbox/{name}/", srHandler.ServeHTTP)
+
+	// e2b API
+	e2bHeader := e2bapi.NewHandler(ahh.rootCtx, c, a, srHandler)
+	e2bHeader.RegisterHandlersWithOptions(ahh.mux)
 
 	ahh.mux.Handle("/mcp", sbHeader.McpSseHandler())
 
@@ -142,9 +142,9 @@ func (ahh *ApiHttpHandler) regHandlers() {
 		w.WriteHeader(http.StatusMovedPermanently)
 	})
 
-	// e2b sandbox execute endpoint
+	// e2b data-plane sandbox access endpoint
 	ahh.mux.HandleFunc("/sandboxes/router/{sandboxID}/{port}/", e2bHeader.SandboxRouterOfPath())
-	// catch-all handler for any unmatched requests, mainly for E2B sandbox proxy purpose
+	// catch-all handler for any unmatched requests, mainly for E2B sandbox proxy by host ({port}-{sandbox_id}.{domain})
 	ahh.mux.HandleFunc("/", e2bHeader.SandboxRouterOfDomain())
 }
 

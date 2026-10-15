@@ -358,22 +358,7 @@ func (a *Handler) SandboxRouterOfPath() http.HandlerFunc {
 			}
 		}
 
-		// rewrite url to /sandbox/{name}/{port}/...
-		prefixToStrip := fmt.Sprintf("/sandboxes/router/%s/%s", sandboxID, port)
-		postPath := strings.TrimPrefix(r.URL.Path, prefixToStrip)
-
-		pxyURL := fmt.Sprintf("/sandbox/%s%s", sbName, postPath)
-		r.URL.Path = pxyURL
-		//add port query param to url
-		if r.URL.RawQuery == "" {
-			r.URL.RawQuery = "port=" + port
-		} else {
-			r.URL.RawQuery = r.URL.RawQuery + "&port=" + port
-		}
-
-		klog.Info("ExecuteSandbox proxying... new url=", r.URL)
-		http.DefaultServeMux.ServeHTTP(w, r)
-		return
+		a.router.Proxy(w, r, sbName, port, fmt.Sprintf("/sandboxes/router/%s/%s", sandboxID, port))
 	}
 }
 
@@ -385,28 +370,12 @@ func (a *Handler) SandboxRouterOfDomain() http.HandlerFunc {
 		}
 		klog.Info("SandboxRouterOfDomain ", r.Method, " ", scheme, "://", r.Host, r.RequestURI, " query=", r.URL.RawQuery)
 
-		// match host and request url is {port}-{sandbox_id}.{domain}/...
-		reqHost := r.Host
-		//"49999-e94466d4e94466d4.example.com"
-		patten := `^[0-9]{4,5}-[a-f0-9]{8,48}\.[a-zA-Z0-9.-]+`
-		matched, _ := regexp.MatchString(patten, reqHost)
-		if !matched {
-			// otherwise just return 404
-			klog.Info("no matched sandbox proxy pattern, url=", reqHost)
-			sendAPIError(w, http.StatusNotFound, "invalid sandbox request "+reqHost)
+		port, sandboxID, ok := ParseSandboxHost(r.Host)
+		if !ok {
+			klog.Info("no matched sandbox proxy pattern, host=", r.Host)
+			sendAPIError(w, http.StatusNotFound, "invalid sandbox request "+r.Host)
 			return
 		}
-
-		// match port from reqURL
-		portSvr := regexp.MustCompile(`^([0-9]{4,5})-([a-f0-9]+)\.`)
-		submatches := portSvr.FindStringSubmatch(reqHost)
-		if len(submatches) < 3 {
-			klog.Info("invalid matched sandbox request pattern, url=", reqHost)
-			sendAPIError(w, http.StatusNotFound, "invalid sandbox request, no port found "+reqHost)
-			return
-		}
-		port := submatches[1]
-		sandboxID := submatches[2]
 
 		sb, err := a.controller.GetByID(sandboxID)
 		if err != nil {
@@ -425,19 +394,20 @@ func (a *Handler) SandboxRouterOfDomain() http.HandlerFunc {
 			}
 		}
 
-		// rewrite url to /sandbox/{name}/{port}/...
-		pxyURL := fmt.Sprintf("/sandbox/%s%s", sbName, r.URL.Path)
-		r.URL.Path = pxyURL
-		if r.URL.RawQuery == "" {
-			r.URL.RawQuery = "port=" + port
-		} else {
-			r.URL.RawQuery = r.URL.RawQuery + "&port=" + port
-		}
-
-		klog.Info("matched sandbox proxy pattern, proxying... new url=", r.URL)
-		http.DefaultServeMux.ServeHTTP(w, r)
-		return
+		a.router.Proxy(w, r, sbName, port, "")
 	}
+}
+
+// sandboxHostPattern matches E2B sandbox hosts: {port}-{sandbox_id}.{domain}, e.g. "49999-e94466d4e94466d4.example.com".
+var sandboxHostPattern = regexp.MustCompile(`^([0-9]{4,5})-([a-f0-9]{8,48})\.[a-zA-Z0-9.-]+`)
+
+// ParseSandboxHost extracts the port and sandbox ID from an E2B sandbox host.
+func ParseSandboxHost(host string) (port, sandboxID string, ok bool) {
+	m := sandboxHostPattern.FindStringSubmatch(host)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
 }
 
 // convertToE2BSandbox converts an internal sandbox.Sandbox to api.Sandbox format

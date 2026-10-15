@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/agent-sandbox/agent-sandbox/pkg/auth"
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
@@ -103,8 +104,13 @@ func (a *Handler) McpSseHandler() *mcp.StreamableHTTPHandler {
 }
 
 func (a *Handler) CreateSandboxTool(ctx context.Context, req *mcp.CallToolRequest, input *sandbox.SandboxBase) (*mcp.CallToolResult, any, error) {
-	sb := sandbox.GetDefaultSandbox() // TODO get user from auth
-	sb.User = "default-mcp-user"
+	user := auth.GetUserTokenFromContext(ctx)
+	if user == "" {
+		return nil, nil, fmt.Errorf("failed to get user from context")
+	}
+
+	sb := sandbox.GetDefaultSandbox()
+	sb.User = user
 
 	sb.SandboxBase = *input
 
@@ -141,10 +147,14 @@ func (a *Handler) CreateSandboxTool(ctx context.Context, req *mcp.CallToolReques
 }
 
 func (a *Handler) ListSandboxTool(ctx context.Context, req *mcp.CallToolRequest, input *sandbox.SandboxBase) (*mcp.CallToolResult, any, error) {
-	user := "default-mcp-user" // TODO get user from auth
+	user := auth.GetUserTokenFromContext(ctx)
+	if user == "" {
+		return nil, nil, fmt.Errorf("failed to get user from context")
+	}
+
 	sbs, err := a.controller.List(user)
-	if sbs != nil {
-		return nil, nil, fmt.Errorf("no sandboxes found %v", err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list sandboxes: %v", err)
 	}
 
 	sbsJson, err := json.MarshalIndent(sbs, "", "  ")
