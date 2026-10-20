@@ -53,7 +53,8 @@ func redactIfSet(s string) string {
 }
 
 // String keeps API tokens out of %v output, e.g. the startup "Loaded config" log.
-// Tokens and per-user settings (keyed by API key) are reported as counts only.
+// Token lists and per-user settings (keyed by API key) are reported as counts,
+// single tokens as [REDACTED].
 func (c *Config) String() string {
 	if c == nil {
 		return "<nil>"

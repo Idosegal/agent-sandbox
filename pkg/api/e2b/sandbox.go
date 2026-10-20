@@ -126,6 +126,16 @@ func (a *Handler) DeleteSandbox(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// redactNewSandbox returns a copy of n for logging, with env var values replaced.
+func redactNewSandbox(n *api.NewSandbox) *api.NewSandbox {
+	if n == nil {
+		return nil
+	}
+	out := *n
+	out.EnvVars = config.RedactEnvVars(n.EnvVars)
+	return &out
+}
+
 func (a *Handler) PostSandboxes(w http.ResponseWriter, r *http.Request) {
 	var request *api.NewSandbox
 
@@ -134,14 +144,7 @@ func (a *Handler) PostSandboxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if request != nil {
-		logged := *request
-		logged.EnvVars = config.RedactEnvVars(request.EnvVars)
-		if logged.Mcp != nil {
-			logged.Mcp = &api.Mcp{"config": config.Redacted}
-		}
-		klog.V(2).Infof("Post sandboxes with request %+v", logged)
-	}
+	klog.V(2).Infof("Post sandboxes with request %+v", redactNewSandbox(request))
 
 	// check template is valid, includes number,- and string, e.g. sandbox-template-demo-version2026 by regexp
 	patten := `^[a-zA-Z0-9\-\.]+$`
@@ -220,7 +223,7 @@ func (a *Handler) CreateSandbox(ctx context.Context, newSandbox *api.NewSandbox)
 		}
 	}
 
-	klog.Infof("Creating sandbox orgin newSandbox is %+v", newSandbox)
+	klog.Infof("Creating sandbox orgin newSandbox is %+v", redactNewSandbox(newSandbox))
 
 	sbCreated, err := a.controller.Create(sb)
 	if err != nil {

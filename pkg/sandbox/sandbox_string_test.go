@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 func TestSandboxStringRedactsSecrets(t *testing.T) {
@@ -27,6 +29,14 @@ func TestSandboxStringRedactsSecrets(t *testing.T) {
 	sb.Name = "sbx-test"
 	sb.User = "user-0123456789abcdef"
 	sb.EnvVars = map[string]string{"OPENAI_API_KEY": "sk-secret"}
+	sb.Metadata["snapshot"] = "c2stc2VjcmV0"
+	// a real ReplicaSet carries the raw sandbox in sandbox-data and the env in its containers
+	sb.ReplicaSet.Name = "sbx-test-rs"
+	sb.ReplicaSet.Annotations[AnnotationSandboxData] = `{"user":"user-0123456789abcdef","envVars":{"OPENAI_API_KEY":"sk-secret"}}`
+	sb.ReplicaSet.Spec.Template.Spec.Containers = []corev1.Container{{
+		Name: "sandbox",
+		Env:  []corev1.EnvVar{{Name: "OPENAI_API_KEY", Value: "sk-secret"}},
+	}}
 
 	got := fmt.Sprintf("Create sandbox opts %v", sb)
 
@@ -36,12 +46,31 @@ func TestSandboxStringRedactsSecrets(t *testing.T) {
 	if strings.Contains(got, "sk-secret") {
 		t.Errorf("sandbox output contains an env var value: %s", got)
 	}
+	if strings.Contains(got, "c2stc2VjcmV0") {
+		t.Errorf("sandbox output contains the process snapshot: %s", got)
+	}
 	for _, want := range []string{"sbx-test", "OPENAI_API_KEY", MaskUserKey(sb.User)} {
 		if !strings.Contains(got, want) {
 			t.Errorf("sandbox output missing %q: %s", want, got)
 		}
 	}
-	if sb.User != "user-0123456789abcdef" || sb.EnvVars["OPENAI_API_KEY"] != "sk-secret" {
-		t.Errorf("String modified the sandbox: user=%q env=%v", sb.User, sb.EnvVars)
+	if sb.User != "user-0123456789abcdef" || sb.EnvVars["OPENAI_API_KEY"] != "sk-secret" ||
+		sb.Metadata["snapshot"] != "c2stc2VjcmV0" || sb.ReplicaSet == nil {
+		t.Errorf("String modified the sandbox: %+v", *sb)
+	}
+}
+
+func TestSandboxToStringRedactsSecrets(t *testing.T) {
+	sb := GetDefaultSandbox()
+	sb.User = "user-0123456789abcdef"
+	sb.EnvVars = map[string]string{"OPENAI_API_KEY": "sk-secret"}
+
+	got := sb.ToString()
+
+	if strings.Contains(got, sb.User) || strings.Contains(got, "sk-secret") {
+		t.Errorf("ToString contains a secret: %s", got)
+	}
+	if !strings.Contains(got, "OPENAI_API_KEY") {
+		t.Errorf("ToString = %s, want env var names kept", got)
 	}
 }

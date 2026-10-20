@@ -46,7 +46,7 @@ func redactHeaders(h http.Header) http.Header {
 	out := h.Clone()
 	for _, name := range credentialHeaders {
 		if _, ok := out[name]; ok {
-			out[name] = []string{"[REDACTED]"}
+			out[name] = []string{config.Redacted}
 		}
 	}
 	return out
@@ -63,7 +63,7 @@ func redactURL(u *url.URL) string {
 	redacted := false
 	for _, name := range credentialQueryParams {
 		if q.Has(name) {
-			q.Set(name, "[REDACTED]")
+			q.Set(name, config.Redacted)
 			redacted = true
 		}
 	}
@@ -71,7 +71,8 @@ func redactURL(u *url.URL) string {
 		return u.String()
 	}
 	out := *u
-	out.RawQuery = q.Encode()
+	// keep the marker readable instead of %5BREDACTED%5D
+	out.RawQuery = strings.ReplaceAll(q.Encode(), url.QueryEscape(config.Redacted), config.Redacted)
 	return out.String()
 }
 

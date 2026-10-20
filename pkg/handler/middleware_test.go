@@ -19,6 +19,7 @@ package handler
 import (
 	"bytes"
 	"flag"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -59,6 +60,9 @@ func TestRedactURL(t *testing.T) {
 	if strings.Contains(got, "secret") {
 		t.Errorf("redactURL = %q, still contains the api key", got)
 	}
+	if !strings.Contains(got, "api_key=[REDACTED]") {
+		t.Errorf("redactURL = %q, want a readable api_key=[REDACTED]", got)
+	}
 	if !strings.Contains(got, "cols=80") {
 		t.Errorf("redactURL = %q, want other query params kept", got)
 	}
@@ -73,14 +77,7 @@ func TestRedactURL(t *testing.T) {
 }
 
 func TestLoggingMiddlewareDoesNotLogAPIKey(t *testing.T) {
-	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
-	klog.InitFlags(fs)
-	_ = fs.Set("v", "2")
-	_ = fs.Set("logtostderr", "false")
-	_ = fs.Set("alsologtostderr", "false")
-	var buf bytes.Buffer
-	klog.SetOutput(&buf)
-	defer klog.SetOutput(nil)
+	buf := captureKlog(t, "2")
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Api-Key") != "e2b_secret" {
@@ -104,4 +101,24 @@ func TestLoggingMiddlewareDoesNotLogAPIKey(t *testing.T) {
 	if strings.Contains(out, "secret") {
 		t.Errorf("log contains a credential: %q", out)
 	}
+}
+
+// captureKlog sends klog output at verbosity v to the returned buffer and
+// restores klog's defaults (stderr, -v=0) when the test ends.
+func captureKlog(t *testing.T, v string) *bytes.Buffer {
+	t.Helper()
+	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(fs)
+	_ = fs.Set("v", v)
+	_ = fs.Set("logtostderr", "false")
+	_ = fs.Set("alsologtostderr", "false")
+	var buf bytes.Buffer
+	klog.SetOutput(&buf)
+	t.Cleanup(func() {
+		klog.Flush()
+		klog.SetOutput(io.Discard)
+		_ = fs.Set("v", "0")
+		klog.LogToStderr(true)
+	})
+	return &buf
 }
