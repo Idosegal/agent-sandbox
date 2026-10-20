@@ -29,6 +29,28 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// credentialHeaders carry secrets and are never written to the request log.
+var credentialHeaders = []string{
+	"Authorization",
+	"Proxy-Authorization",
+	"Cookie",
+	"Set-Cookie",
+	"X-Api-Key",
+	"X-Access-Token",
+}
+
+// redactHeaders returns a copy of h for logging, with credential values replaced.
+// The original header is not modified.
+func redactHeaders(h http.Header) http.Header {
+	out := h.Clone()
+	for _, name := range credentialHeaders {
+		if _, ok := out[name]; ok {
+			out[name] = []string{"[REDACTED]"}
+		}
+	}
+	return out
+}
+
 // LoggingMiddleware logs the request details and execution time
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -44,11 +66,11 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 			scheme = "https"
 		}
 
-		klog.V(1).Infof("Started request: %s %s:%s%s, request headers %v", r.Method, scheme, r.Host, r.URL, r.Header)
+		klog.V(1).Infof("Started request: %s %s:%s%s, request headers %v", r.Method, scheme, r.Host, r.URL, redactHeaders(r.Header))
 
 		next.ServeHTTP(w, r)
 
-		klog.V(1).Infof("Finished request: %s %s://%s%s, Time taken: %v, response header: %v", r.Method, scheme, r.Host, r.URL, time.Since(start), w.Header())
+		klog.V(1).Infof("Finished request: %s %s://%s%s, Time taken: %v, response header: %v", r.Method, scheme, r.Host, r.URL, time.Since(start), redactHeaders(w.Header()))
 	})
 }
 
