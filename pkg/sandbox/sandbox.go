@@ -143,6 +143,19 @@ const (
 	PoolLabel = "sbx-pool" // "true" indicates this is a pool replicaset
 )
 
+// String keeps the user's API key and env var values out of %v output, e.g. the
+// "Create sandbox opts" logs.
+func (sb *Sandbox) String() string {
+	if sb == nil {
+		return "<nil>"
+	}
+	type plain Sandbox // no String method, so Sprintf below doesn't recurse
+	cp := plain(*sb)
+	cp.User = MaskUserKey(cp.User)
+	cp.EnvVars = config.RedactEnvVars(cp.EnvVars)
+	return fmt.Sprintf("%+v", cp)
+}
+
 // Sandbox values process: GetDefaultSandbox->request overwrite->Make->setDefaultValueOfSandbox
 
 func GetDefaultSandbox() *Sandbox {

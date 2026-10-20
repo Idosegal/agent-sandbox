@@ -28,6 +28,7 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/api/e2b/api"
 	"github.com/agent-sandbox/agent-sandbox/pkg/auth"
 	"github.com/agent-sandbox/agent-sandbox/pkg/capacity"
+	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
 	"github.com/agent-sandbox/agent-sandbox/pkg/utils"
@@ -133,7 +134,14 @@ func (a *Handler) PostSandboxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	klog.V(2).Infof("Post sandboxes with request %+v", request)
+	if request != nil {
+		logged := *request
+		logged.EnvVars = config.RedactEnvVars(request.EnvVars)
+		if logged.Mcp != nil {
+			logged.Mcp = &api.Mcp{"config": config.Redacted}
+		}
+		klog.V(2).Infof("Post sandboxes with request %+v", logged)
+	}
 
 	// check template is valid, includes number,- and string, e.g. sandbox-template-demo-version2026 by regexp
 	patten := `^[a-zA-Z0-9\-\.]+$`
