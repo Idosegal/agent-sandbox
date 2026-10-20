@@ -50,6 +50,39 @@ func TestCheckFeatureDoesNotLogAPIKeys(t *testing.T) {
 	}
 }
 
+func TestCheckFeatureExperimentTokens(t *testing.T) {
+	captureKlog(t, "0")
+	prev := Cfg
+	defer func() { Cfg = prev }()
+
+	cases := []struct {
+		name   string
+		tokens string
+		user   string
+		want   bool
+	}{
+		{"empty enables all users", "", "anyone-0123456789", true},
+		{"blank entries only enables all users", " , ,", "anyone-0123456789", true},
+		{"listed user", "user-a,user-b", "user-b", true},
+		{"spaces around entries", "user-a, user-b ", "user-b", true},
+		{"unlisted user", "user-a,user-b", "user-c", false},
+		{"empty user with tokens set", "user-a,", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			Cfg = &Config{FeatureConfig: FeatureConfig{ExperimentTokens: tc.tokens}}
+			if got := CheckFeature(true, tc.user); got != tc.want {
+				t.Errorf("CheckFeature(true, %q) with ExperimentTokens %q = %v, want %v", tc.user, tc.tokens, got, tc.want)
+			}
+		})
+	}
+
+	Cfg = &Config{}
+	if CheckFeature(false, "anyone-0123456789") {
+		t.Errorf("CheckFeature(false, ...) = true, want false when the feature is off")
+	}
+}
+
 func TestWatchConfigMapDoesNotLogRuntimeConfig(t *testing.T) {
 	buf := captureKlog(t, "0")
 
