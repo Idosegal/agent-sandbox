@@ -37,14 +37,7 @@ func CheckFeature(feature bool, user string) bool {
 		return false
 	}
 
-	// strings.Split("", ",") returns [""], so drop blanks or an empty
-	// ExperimentTokens would disable the feature for everyone
-	var tokens []string
-	for _, token := range strings.Split(Cfg.ExperimentTokens, ",") {
-		if token = strings.TrimSpace(token); token != "" {
-			tokens = append(tokens, token)
-		}
-	}
+	tokens := strings.Split(Cfg.ExperimentTokens, ",")
 	if len(tokens) > 0 {
 		r := slices.Contains(tokens, user)
 		klog.Infof("ExperimentTokens: %d configured, user: %s, enabled: %v", len(tokens), MaskUserKey(user), r)
