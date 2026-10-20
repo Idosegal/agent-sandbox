@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -51,6 +52,29 @@ func redactHeaders(h http.Header) http.Header {
 	return out
 }
 
+// credentialQueryParams carry secrets in the URL and are never written to the request log.
+// The UI terminal WebSocket sends api_key this way because browsers can't set WS headers.
+var credentialQueryParams = []string{"api_key"}
+
+// redactURL returns u as a string for logging, with credential query values replaced.
+// The original URL is not modified.
+func redactURL(u *url.URL) string {
+	q := u.Query()
+	redacted := false
+	for _, name := range credentialQueryParams {
+		if q.Has(name) {
+			q.Set(name, "[REDACTED]")
+			redacted = true
+		}
+	}
+	if !redacted {
+		return u.String()
+	}
+	out := *u
+	out.RawQuery = q.Encode()
+	return out.String()
+}
+
 // LoggingMiddleware logs the request details and execution time
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,11 +90,11 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 			scheme = "https"
 		}
 
-		klog.V(1).Infof("Started request: %s %s:%s%s, request headers %v", r.Method, scheme, r.Host, r.URL, redactHeaders(r.Header))
+		klog.V(1).Infof("Started request: %s %s:%s%s, request headers %v", r.Method, scheme, r.Host, redactURL(r.URL), redactHeaders(r.Header))
 
 		next.ServeHTTP(w, r)
 
-		klog.V(1).Infof("Finished request: %s %s://%s%s, Time taken: %v, response header: %v", r.Method, scheme, r.Host, r.URL, time.Since(start), redactHeaders(w.Header()))
+		klog.V(1).Infof("Finished request: %s %s://%s%s, Time taken: %v, response header: %v", r.Method, scheme, r.Host, redactURL(r.URL), time.Since(start), redactHeaders(w.Header()))
 	})
 }
 

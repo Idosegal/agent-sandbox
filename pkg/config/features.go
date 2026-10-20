@@ -40,10 +40,21 @@ func CheckFeature(feature bool, user string) bool {
 	tokens := strings.Split(Cfg.ExperimentTokens, ",")
 	if len(tokens) > 0 {
 		r := slices.Contains(tokens, user)
-		klog.Infof("ExperimentTokens: %v, user: %v", tokens, user)
+		klog.Infof("ExperimentTokens: %d configured, user: %s, enabled: %v", len(tokens), MaskUserKey(user), r)
 		return r
 	}
 
-	klog.Infof("ExperimentTokens is empty, enabling all features for user %s", user)
+	klog.Infof("ExperimentTokens is empty, enabling all features for user %s", MaskUserKey(user))
 	return true
+}
+
+// MaskUserKey keeps the leading 2/3 of a user key (matches pkg/telemetry's
+// maskUser). User keys are API keys, so anything logged or exposed publicly
+// goes through this instead of the raw value.
+func MaskUserKey(s string) string {
+	n := len(s) * 2 / 3
+	if n < 1 {
+		return s
+	}
+	return s[:n]
 }

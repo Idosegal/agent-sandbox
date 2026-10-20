@@ -21,6 +21,7 @@ import (
 	"flag"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -50,6 +51,27 @@ func TestRedactHeaders(t *testing.T) {
 	}
 }
 
+func TestRedactURL(t *testing.T) {
+	u, _ := url.Parse("/api/v1/terminal/sandbox/sb1/ws?api_key=e2b_secret&cols=80")
+
+	got := redactURL(u)
+
+	if strings.Contains(got, "secret") {
+		t.Errorf("redactURL = %q, still contains the api key", got)
+	}
+	if !strings.Contains(got, "cols=80") {
+		t.Errorf("redactURL = %q, want other query params kept", got)
+	}
+	if u.Query().Get("api_key") != "e2b_secret" {
+		t.Errorf("original URL modified: %q", u.String())
+	}
+
+	plain, _ := url.Parse("/api/v1/sandbox?limit=10")
+	if got := redactURL(plain); got != "/api/v1/sandbox?limit=10" {
+		t.Errorf("redactURL = %q, want URL without credentials unchanged", got)
+	}
+}
+
 func TestLoggingMiddlewareDoesNotLogAPIKey(t *testing.T) {
 	fs := flag.NewFlagSet("klog", flag.ContinueOnError)
 	klog.InitFlags(fs)
@@ -64,9 +86,12 @@ func TestLoggingMiddlewareDoesNotLogAPIKey(t *testing.T) {
 		if r.Header.Get("X-Api-Key") != "e2b_secret" {
 			t.Errorf("handler saw X-Api-Key %q, want the original value", r.Header.Get("X-Api-Key"))
 		}
+		if r.URL.Query().Get("api_key") != "e2b_secret" {
+			t.Errorf("handler saw api_key %q, want the original value", r.URL.Query().Get("api_key"))
+		}
 		w.Header().Set("Set-Cookie", "session=secret")
 	})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/sandbox", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sandbox?api_key=e2b_secret", nil)
 	req.Header.Set("X-API-Key", "e2b_secret")
 
 	LoggingMiddleware(next).ServeHTTP(httptest.NewRecorder(), req)

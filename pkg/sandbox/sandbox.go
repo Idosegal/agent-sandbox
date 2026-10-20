@@ -332,13 +332,9 @@ type SandboxKube struct {
 	Namespace string
 }
 
-// MaskUserKey keeps the leading 2/3 of a user key (matches pkg/telemetry's
-// maskUser). Public endpoints use this so anonymous callers can't read the
-// full identity even when per-user counters are exposed.
+// MaskUserKey keeps the leading 2/3 of a user key. Public endpoints use this
+// so anonymous callers can't read the full identity even when per-user
+// counters are exposed.
 func MaskUserKey(s string) string {
-	n := len(s) * 2 / 3
-	if n < 1 {
-		return s
-	}
-	return s[:n]
+	return config.MaskUserKey(s)
 }
