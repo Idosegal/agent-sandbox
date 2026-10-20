@@ -86,4 +86,9 @@ V0.8.4 - 2026-09-01
 - Fix: process snapshot being cleared to empty when fetching processes fails.
 - Improve: automated build now injects the version via `-ldflags` instead of a hardcoded version string.
 --------------------------
+V0.8.5 - 2026-10-20
+- Improve: refactor the API handler so that each API path can be configured with its own authentication method.
+- Fix: missing authentication on the MCP API; MCP operations now use the real caller identity.
+- Improve: upgrade jupyter-server in the sandbox-base-code template to 2.21.0.
+--------------------------
 
